@@ -1,0 +1,12 @@
+flask==1.0
+django==2.0
+requests==2.18.0
+log4j==2.14
+#and more...
+flask==3.0.0
+requests==2.31.0
+numpy==1.26.0
+flask==2.2.2
+fastapi==0.95.0
+pandas==1.5.3
+log4j==2.14

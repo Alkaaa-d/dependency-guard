@@ -1,0 +1,4 @@
+flask==2.2.2
+requests==2.28.1
+numpy==1.21.0
+log4j==2.14
