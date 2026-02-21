@@ -5,7 +5,6 @@ def parse_requirements(file_path):
         for line in file:
             line = line.strip()
 
-            # Skip empty lines and comments
             if not line or line.startswith("#"):
                 continue
 

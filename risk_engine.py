@@ -1,8 +1,7 @@
 import pandas as pd
 import os
-import requests   # ✅ NEW
+import requests   
 
-# ✅ NEW FUNCTION (REAL VULNERABILITY CHECK)
 def check_real_vulnerability(package, version):
     url = "https://api.osv.dev/v1/query"
 
@@ -23,7 +22,6 @@ def check_real_vulnerability(package, version):
 
 
 def calculate_risk(dependencies):
-    # Safe CSV path
     base_dir = os.path.dirname(os.path.abspath(__file__))
     csv_path = os.path.join(base_dir, "data", "vulnerability.csv")
 
@@ -44,7 +42,6 @@ def calculate_risk(dependencies):
             "trust": 0
         }
 
-        # 1️⃣ REAL OSV Vulnerability Check (NEW)
         real_vulns = check_real_vulnerability(dep["name"], dep["version"])
 
         if real_vulns > 0:
@@ -52,7 +49,6 @@ def calculate_risk(dependencies):
             reasons.append(f"{real_vulns} real vulnerabilities found (OSV)")
 
         else:
-            # Fallback to CSV demo logic if no real vuln found
             match = vuln_data[
                 vuln_data["package"].str.lower() == dep["name"].lower()
             ]
@@ -69,20 +65,16 @@ def calculate_risk(dependencies):
                 else:
                     breakdown["vulnerability"] = 10
 
-        # 2️⃣ Version age factor
         if dep["version"].startswith(("1.", "2.")):
             breakdown["version_age"] = 20
             reasons.append("Outdated version")
 
-        # 3️⃣ Trust heuristic
         if dep["name"].lower() == "log4j":
             breakdown["trust"] = 20
             reasons.append("Low maintainer trust")
 
-        # Final score
         score = sum(breakdown.values())
 
-        # Risk classification
         if score >= 70:
             risk_level = "High"
         elif score >= 40:
@@ -90,7 +82,6 @@ def calculate_risk(dependencies):
         else:
             risk_level = "Low"
 
-        # Recommendation
         if risk_level == "High":
             recommendation = "Update or replace immediately"
         elif risk_level == "Medium":

@@ -3,7 +3,6 @@ import os
 
 def generate_dependency_graph(results):
     try:
-        # Absolute path for static folder
         base_dir = os.path.dirname(os.path.abspath(__file__))
         static_path = os.path.join(base_dir, "static")
         os.makedirs(static_path, exist_ok=True)
@@ -16,7 +15,6 @@ def generate_dependency_graph(results):
                  fillcolor="lightblue")
 
         for r in results:
-            # Determine color based on risk
             if r["risk"] == "High":
                 color = "red"
             elif r["risk"] == "Medium":
@@ -24,7 +22,6 @@ def generate_dependency_graph(results):
             else:
                 color = "green"
 
-            # Safe node name
             node_name = r["name"].replace(".", "_")
 
             dot.node(node_name,
@@ -34,7 +31,6 @@ def generate_dependency_graph(results):
 
             dot.edge("Project", node_name)
 
-        # Save graph image
         output_path = os.path.join(static_path, "dependency_graph")
         dot.render(output_path, cleanup=True)
 

@@ -10,8 +10,45 @@
             padding: 30px;
         }
 
-        h2 {
-            margin-bottom: 20px;
+        h2 { margin-bottom: 20px; }
+
+        button {
+            padding: 8px 15px;
+            background-color: #22c55e;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+
+        button:hover { background-color: #16a34a; }
+
+        .circle-section {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 40px;
+        }
+
+        .circle {
+            width: 220px;
+            height: 220px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .inner {
+            width: 170px;
+            height: 170px;
+            background: #0f172a;
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
         }
 
         .cards {
@@ -42,27 +79,38 @@
             padding: 12px;
             border: 1px solid #1e293b;
             text-align: center;
+            vertical-align: top;
         }
 
-        th {
-            background-color: #020617;
-        }
+        th { background-color: #1e293b; }
 
         .Low { color: #22c55e; font-weight: bold; }
         .Medium { color: #facc15; font-weight: bold; }
         .High { color: #ef4444; font-weight: bold; }
+
+        .attack-box {
+            text-align: left;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .impact {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
     </style>
 </head>
 
 <body>
 
 <h2>🔐 Dependency-Guard – Supply Chain Risk Dashboard</h2>
- <form method="POST" enctype="multipart/form-data" style="margin-bottom: 20px;">
+
+<form method="POST" enctype="multipart/form-data" style="margin-bottom: 20px;">
     <input type="file" name="file" required>
     <button type="submit">Scan Dependencies</button>
 </form>
 
-<!-- Summary Cards -->
 <div class="cards">
     <div class="card low">🟢 Low Risk<br>{{ summary.low }}</div>
     <div class="card medium">🟡 Medium Risk<br>{{ summary.medium }}</div>
@@ -70,41 +118,43 @@
 </div>
 
 <table>
-   <tr>
+<tr>
     <th>Package</th>
     <th>Version</th>
     <th>Risk Score</th>
     <th>Risk</th>
-    <th>Risk Reason</th>
-    <th>AI Breakdown</th>
+    <th>Attack Simulation</th>
     <th>Recommendation</th>
 </tr>
 
-
-   {% for r in results %}
+{% for r in results %}
 <tr>
     <td>{{ r.name }}</td>
     <td>{{ r.version }}</td>
-    <td>{{ r.score }}</td>
+    <td>{{ r.score }}%</td>
     <td class="{{ r.risk }}">{{ r.risk }}</td>
-    <td>{{ r.reason }}</td>
+
     <td>
-        Vulnerability: {{ r.breakdown.vulnerability }}<br>
-        Version Age: {{ r.breakdown.version_age }}<br>
-        Trust: {{ r.breakdown.trust }}
+        {% if r.simulation %}
+        <div class="attack-box">
+            <div class="impact">
+                Impact: {{ r.simulation.impact_level }}
+            </div>
+            <ul>
+                {% for attack in r.simulation.simulated_attacks %}
+                <li>{{ attack }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% else %}
+        No simulation available
+        {% endif %}
     </td>
+
     <td>{{ r.recommendation }}</td>
 </tr>
 {% endfor %}
-
-
 </table>
-<h3 style="margin-top:40px;">📊 Dependency Graph</h3>
-
-<img src="{{ url_for('static', filename='dependency_graph.png') }}"
-     alt="Dependency Graph"
-     style="width:70%; margin-top:20px;">
-
 
 </body>
 </html>
