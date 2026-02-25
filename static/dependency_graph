@@ -1,0 +1,9 @@
+digraph {
+	Project [label=Project fillcolor=lightblue shape=box style=filled]
+	pandas [label=pandas fillcolor=green style=filled]
+	Project -> pandas
+	sqlalchemy [label=sqlalchemy fillcolor=green style=filled]
+	Project -> sqlalchemy
+	numpy [label=numpy fillcolor=orange style=filled]
+	Project -> numpy
+}

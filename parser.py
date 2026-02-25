@@ -1,19 +1,22 @@
-def parse_requirements(file_path):
+def parse_requirements(filepath):
     dependencies = []
 
-    with open(file_path, "r") as file:
-        for line in file:
+    try:
+        with open(filepath, "r") as file:
+            lines = file.readlines()
+
+        for line in lines:
             line = line.strip()
 
-            # Skip empty lines and comments
-            if not line or line.startswith("#"):
-                continue
+            if line and not line.startswith("#"):
+                if "==" in line:
+                    name, version = line.split("==")
+                    dependencies.append({
+                        "name": name.strip(),
+                        "version": version.strip()
+                    })
 
-            if "==" in line:
-                name, version = line.split("==", 1)
-                dependencies.append({
-                    "name": name.strip(),
-                    "version": version.strip()
-                })
+    except Exception as e:
+        print("Error parsing file:", e)
 
     return dependencies

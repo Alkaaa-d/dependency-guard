@@ -1,9 +1,12 @@
-import pandas as pd
-import os
-import requests   # ✅ NEW
+import requests
+from datetime import datetime
 
-# ✅ NEW FUNCTION (REAL VULNERABILITY CHECK)
-def check_real_vulnerability(package, version):
+
+# -------------------------------------
+# OSV Vulnerability Check
+# -------------------------------------
+def check_osv_vulnerabilities(package, version):
+
     url = "https://api.osv.dev/v1/query"
 
     payload = {
@@ -15,95 +18,129 @@ def check_real_vulnerability(package, version):
     }
 
     try:
-        response = requests.post(url, json=payload, timeout=5)
-        data = response.json()
-        return len(data.get("vulns", []))
+        response = requests.post(url, json=payload, timeout=3)
+
+        if response.status_code == 200:
+            data = response.json()
+            return len(data.get("vulns", []))
+
     except:
-        return 0
+        pass
+
+    return 0
 
 
+# -------------------------------------
+# Main Risk Calculation
+# -------------------------------------
 def calculate_risk(dependencies):
-    # Safe CSV path
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    csv_path = os.path.join(base_dir, "data", "vulnerability.csv")
-
-    try:
-        vuln_data = pd.read_csv(csv_path)
-    except Exception as e:
-        print("Error loading vulnerability data:", e)
-        vuln_data = pd.DataFrame(columns=["package", "risk"])
 
     results = []
 
     for dep in dependencies:
+
         score = 0
         reasons = []
+
         breakdown = {
             "vulnerability": 0,
             "version_age": 0,
-            "trust": 0
+            "trust": 0,
+            "maintenance": 0
         }
 
-        # 1️⃣ REAL OSV Vulnerability Check (NEW)
-        real_vulns = check_real_vulnerability(dep["name"], dep["version"])
+        name = dep.get("name", "")
+        version = dep.get("version", "")
 
-        if real_vulns > 0:
-            breakdown["vulnerability"] = 50
-            reasons.append(f"{real_vulns} real vulnerabilities found (OSV)")
+        # -----------------------------
+        # 1️⃣ Real Vulnerability Check
+        # -----------------------------
+        vuln_count = check_osv_vulnerabilities(name, version)
 
-        else:
-            # Fallback to CSV demo logic if no real vuln found
-            match = vuln_data[
-                vuln_data["package"].str.lower() == dep["name"].lower()
-            ]
+        if vuln_count > 0:
+            vuln_score = min(60, vuln_count * 20)
+            breakdown["vulnerability"] = vuln_score
+            score += vuln_score
+            reasons.append(f"{vuln_count} known vulnerabilities detected")
 
-            if not match.empty:
-                risk = match.iloc[0]["risk"].lower()
+        # -----------------------------
+        # 2️⃣ Version Age Check
+        # -----------------------------
+        if version.startswith(("0.", "1.")):
+            breakdown["version_age"] = 25
+            score += 25
+            reasons.append("Very old major version")
 
-                if risk == "high":
-                    breakdown["vulnerability"] = 50
-                    reasons.append("Known high-severity vulnerability")
-                elif risk == "medium":
-                    breakdown["vulnerability"] = 30
-                    reasons.append("Moderate vulnerability history")
-                else:
-                    breakdown["vulnerability"] = 10
+        elif version.startswith("2."):
+            breakdown["version_age"] = 15
+            score += 15
+            reasons.append("Outdated major version")
 
-        # 2️⃣ Version age factor
-        if dep["version"].startswith(("1.", "2.")):
-            breakdown["version_age"] = 20
-            reasons.append("Outdated version")
+        # -----------------------------
+        # 3️⃣ Known Risky Packages
+        # -----------------------------
+        risky_packages = ["log4j", "event-stream"]
 
-        # 3️⃣ Trust heuristic
-        if dep["name"].lower() == "log4j":
-            breakdown["trust"] = 20
-            reasons.append("Low maintainer trust")
+        if name.lower() in risky_packages:
+            breakdown["trust"] = 25
+            score += 25
+            reasons.append("Historically compromised package")
 
-        # Final score
-        score = sum(breakdown.values())
+        # -----------------------------
+        # 4️⃣ Maintenance Check
+        # -----------------------------
+        try:
+            url = f"https://pypi.org/pypi/{name}/json"
+            response = requests.get(url, timeout=3)
 
-        # Risk classification
-        if score >= 70:
-            risk_level = "High"
+            if response.status_code == 200:
+                data = response.json()
+                latest_version = data["info"]["version"]
+                release_info = data["releases"].get(latest_version, [])
+
+                if release_info:
+                    upload_time = release_info[0]["upload_time"]
+                    release_year = int(upload_time[:4])
+                    current_year = datetime.now().year
+
+                    if current_year - release_year >= 3:
+                        breakdown["maintenance"] = 20
+                        score += 20
+                        reasons.append("Inactive or poorly maintained package")
+
+        except:
+            pass
+
+        # -----------------------------
+        # Final Risk Level
+        # -----------------------------
+        if score >= 75:
+            risk = "High"
         elif score >= 40:
-            risk_level = "Medium"
+            risk = "Medium"
         else:
-            risk_level = "Low"
+            risk = "Low"
 
+        # -----------------------------
         # Recommendation
-        if risk_level == "High":
-            recommendation = "Update or replace immediately"
-        elif risk_level == "Medium":
-            recommendation = "Update to latest version"
+        # -----------------------------
+        if risk == "High":
+            recommendation = "Immediate upgrade or replacement required"
+        elif risk == "Medium":
+            recommendation = "Update to latest stable version"
         else:
             recommendation = "Safe to use"
 
+        # -----------------------------
+        # Append Result
+        # -----------------------------
         results.append({
-            "name": dep["name"],
-            "version": dep["version"],
-            "score": score,
-            "risk": risk_level,
-            "reason": ", ".join(reasons),
+            "type": "Dependency",
+            "name": name,
+            "version": version,
+            "score": min(score, 100),
+            "risk": risk,
+            "reason": ", ".join(reasons) if reasons else "No major issues detected",
             "breakdown": breakdown,
             "recommendation": recommendation
         })
