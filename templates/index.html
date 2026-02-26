@@ -12,7 +12,6 @@ body {
     overflow-x: hidden;
 }
 
-/* Background Glow */
 body::before,
 body::after {
     content: "";
@@ -23,20 +22,9 @@ body::after {
     filter: blur(120px);
     z-index: -1;
 }
+body::before { background: rgba(34,197,94,0.25); top: -100px; left: -100px; }
+body::after { background: rgba(59,130,246,0.25); bottom: -120px; right: -120px; }
 
-body::before {
-    background: rgba(34,197,94,0.25);
-    top: -100px;
-    left: -100px;
-}
-
-body::after {
-    background: rgba(59,130,246,0.25);
-    bottom: -120px;
-    right: -120px;
-}
-
-/* Header */
 .header {
     padding: 25px 50px;
     font-size: 22px;
@@ -46,12 +34,25 @@ body::after {
     border-bottom: 1px solid rgba(255,255,255,0.1);
 }
 
-/* Container */
-.container {
-    padding: 50px;
+.topbar {
+    display: flex;
+    justify-content: center;
+    gap: 60px;
+    padding: 15px;
+    background: rgba(255,255,255,0.05);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(255,255,255,0.1);
 }
+.topbar a {
+    color: #e2e8f0;
+    text-decoration: none;
+    font-weight: 600;
+    transition: 0.3s ease;
+}
+.topbar a:hover { color: #22c55e; }
 
-/* Glass Card */
+.container { padding: 50px; }
+
 .glass {
     background: rgba(255,255,255,0.08);
     backdrop-filter: blur(25px);
@@ -59,16 +60,9 @@ body::after {
     border: 1px solid rgba(255,255,255,0.15);
     padding: 25px;
     margin-bottom: 40px;
-    transition: 0.4s ease;
     box-shadow: 0 8px 32px rgba(0,0,0,0.3);
 }
 
-.glass:hover {
-    transform: translateY(-6px);
-    box-shadow: 0 0 40px rgba(34,197,94,0.2);
-}
-
-/* Scan Grid */
 .scan-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -77,17 +71,9 @@ body::after {
 
 .scan-box {
     background: rgba(255,255,255,0.06);
-    backdrop-filter: blur(15px);
-    border: 1px solid rgba(255,255,255,0.1);
     border-radius: 18px;
     padding: 25px;
     text-align: center;
-    transition: 0.3s ease;
-}
-
-.scan-box:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 0 25px rgba(34,197,94,0.2);
 }
 
 .scan-box input {
@@ -108,23 +94,8 @@ body::after {
     border-radius: 10px;
     font-weight: bold;
     cursor: pointer;
-    color: black;
-    transition: 0.3s;
 }
 
-.scan-box button:hover {
-    box-shadow: 0 0 20px #22c55e;
-    transform: scale(1.05);
-}
-
-/* Responsive */
-@media (max-width: 900px) {
-    .scan-grid {
-        grid-template-columns: 1fr;
-    }
-}
-
-/* Summary */
 .summary {
     display: flex;
     gap: 20px;
@@ -138,32 +109,17 @@ body::after {
     text-align: center;
     font-size: 20px;
     font-weight: bold;
-    border: 1px solid rgba(255,255,255,0.1);
 }
 
 .low-box { background: rgba(34,197,94,0.1); color: #22c55e; }
 .medium-box { background: rgba(250,204,21,0.1); color: #facc15; }
 .high-box { background: rgba(239,68,68,0.1); color: #ef4444; }
 
-/* Result Cards */
 .dep-card {
     border-radius: 20px;
     padding: 25px;
     background: rgba(255,255,255,0.08);
-    border: 1px solid rgba(255,255,255,0.1);
     margin-bottom: 30px;
-    transition: 0.4s ease;
-}
-
-.dep-card:hover {
-    transform: translateY(-8px);
-    box-shadow: 0 0 40px rgba(0,255,170,0.15);
-}
-
-.dep-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
 }
 
 .risk-badge {
@@ -177,29 +133,7 @@ body::after {
 .risk-medium { background: rgba(250,204,21,0.2); color: #facc15; }
 .risk-high { background: rgba(239,68,68,0.2); color: #ef4444; }
 
-/* Progress Bar */
-.progress-container {
-    height: 8px;
-    background: rgba(255,255,255,0.1);
-    border-radius: 6px;
-    margin-top: 10px;
-    overflow: hidden;
-}
-
-.progress-bar {
-    height: 8px;
-    width: 0;
-    transition: width 0.8s ease;
-}
-
-.progress-low { background: #22c55e; }
-.progress-medium { background: #facc15; }
-.progress-high { background: #ef4444; }
-
-ul {
-    margin-left: 20px;
-    font-size: 14px;
-}
+ul { margin-left: 20px; }
 </style>
 </head>
 
@@ -209,11 +143,15 @@ ul {
 🔐 Dependency-Guard — Threat Intelligence Platform
 </div>
 
+<div class="topbar">
+    <a href="/">Dashboard</a>
+    <a href="/phishing">Phishing Scan</a>
+</div>
+
 <div class="container">
 
 <div class="glass">
 <form method="POST" enctype="multipart/form-data">
-
 <div class="scan-grid">
 
     <div class="scan-box">
@@ -249,56 +187,50 @@ ul {
 {% for r in results %}
 <div class="dep-card">
 
+<span class="risk-badge risk-{{ r.risk|lower }}">
+{{ r.risk }} — {{ r.score }}%
+</span>
+
+<br><br>
+
+<strong>Target:</strong> {{ r.title }}
+
 {% if r.type == "Dependency" %}
+<br><br>
+<strong>Version:</strong> {{ r.version }}
 
-    <div class="dep-header">
-        <div><strong>{{ r.name }}</strong> ({{ r.version }})</div>
-        <div class="risk-badge risk-{{ r.risk|lower }}">
-            {{ r.risk }} — {{ r.score }}%
-        </div>
-    </div>
+<br><br>
+<strong>Threat Intelligence:</strong><br>
+CVEs Found: {{ r.threat_intel["count"] }}<br>
+Highest Severity: {{ r.threat_intel["severity"] }}<br>
+CVSS Score: {{ r.threat_intel["cvss_score"] }}
 
-{% elif r.type == "URL" %}
+{% if r.threat_intel["cves"] %}
+<br><br>
+<strong>CVE IDs:</strong>
+<ul>
+{% for cve in r.threat_intel["cves"] %}
+<li>{{ cve }}</li>
+{% endfor %}
+</ul>
+{% endif %}
 
-    <div class="dep-header">
-        <div><strong>URL Scan</strong></div>
-        <div class="risk-badge risk-{{ r.risk|lower }}">
-            {{ r.risk }} — {{ r.score }}%
-        </div>
-    </div>
-
-    <br>
-    <strong>Target:</strong> {{ r.title }}
-
-    <br><br>
-    <strong>Details:</strong>
-    <ul>
-        {% for d in r.details %}
-        <li>{{ d }}</li>
-        {% endfor %}
-    </ul>
-
-{% elif r.type == "Hash" %}
-
-    <div class="dep-header">
-        <div><strong>Hash Scan</strong></div>
-        <div class="risk-badge risk-{{ r.risk|lower }}">
-            {{ r.risk }} — {{ r.score }}%
-        </div>
-    </div>
-
-    <br>
-    <strong>Hash:</strong> {{ r.title }}
-
-    <br><br>
-    <strong>Details:</strong>
-    <ul>
-        {% for d in r.details %}
-        <li>{{ d }}</li>
-        {% endfor %}
-    </ul>
+<br>
+<strong>AI Risk Analysis:</strong><br>
+{{ r.ai_explanation }}
 
 {% endif %}
+
+<br><br>
+<strong>Details:</strong>
+<ul>
+{% for d in r.details %}
+<li>{{ d }}</li>
+{% endfor %}
+</ul>
+
+<br>
+<strong>Recommendation:</strong> {{ r.recommendation }}
 
 </div>
 {% endfor %}
@@ -306,6 +238,5 @@ ul {
 {% endif %}
 
 </div>
-
 </body>
 </html>

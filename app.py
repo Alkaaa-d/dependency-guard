@@ -12,12 +12,16 @@ import os
 import requests
 import io
 import re
+import socket
+from urllib.parse import urlparse
 
 app = Flask(__name__)
 
 UPLOAD_FOLDER = "uploads"
 ALLOWED_EXTENSIONS = {"txt"}
+
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
+app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024
 
 latest_results = []
 latest_summary = {"low": 0, "medium": 0, "high": 0}
@@ -44,7 +48,6 @@ def get_release_year(package_name):
             if release_info:
                 upload_time = release_info[0]["upload_time"]
                 return upload_time[:4]
-
     except:
         pass
 
@@ -52,7 +55,7 @@ def get_release_year(package_name):
 
 
 # ------------------------------------
-# Main Route
+# Main Dashboard Route
 # ------------------------------------
 
 @app.route("/", methods=["GET", "POST"])
@@ -68,9 +71,7 @@ def index():
         url_input = request.form.get("url")
         hash_value = request.form.get("hash")
 
-        # ===============================
-        # FILE SCAN
-        # ===============================
+        # ================= FILE SCAN =================
         if file and allowed_file(file.filename):
 
             filename = secure_filename(file.filename)
@@ -87,70 +88,65 @@ def index():
                 for r in results:
 
                     r["type"] = "Dependency"
-                    r["title"] = r.get("name")  # Ensure title always exists
+                    r["title"] = r.get("name")
 
-                    r["relations"] = relation_data.get(r["name"], {
-                        "impact_level": "Low",
-                        "centrality_score": 0
-                    })
+                    # Add relation impact
+                    r["relations"] = relation_data.get(
+                        r["name"],
+                        {"impact_level": "Low", "centrality_score": 0}
+                    )
 
                     if r["relations"]["impact_level"] == "Critical":
                         r["score"] = min(r["score"] + 10, 100)
 
+                    # Add release year
                     r["release_year"] = get_release_year(r["name"])
 
+                    # Attack simulation
                     r["simulation"] = simulate_attack(
                         r["name"],
                         risk_score=r["score"]
                     )
 
+                    # Tags
                     r["tags"] = generate_tags(
                         r["name"],
                         r["score"],
                         r["release_year"]
                     )
 
-                summary = {
-                    "low": sum(1 for r in results if r["risk"] == "Low"),
-                    "medium": sum(1 for r in results if r["risk"] == "Medium"),
-                    "high": sum(1 for r in results if r["risk"] == "High"),
-                }
-
-        # ===============================
-        # URL SCAN
-        # ===============================
-        elif url_input:
+        # ================= URL SCAN =================
+        elif url_input and url_input.startswith(("http://", "https://")):
 
             url_result = scan_general_url(url_input)
 
             results = [{
                 "type": "URL",
-                "title": url_input,   # This ensures Target shows
+                "title": url_input,
                 "risk": url_result.get("risk", "Low"),
                 "score": url_result.get("score", 0),
                 "details": url_result.get("details", []),
-                "recommendation": "Verify HTTPS and inspect suspicious keywords"
+                "recommendation": "Verify HTTPS and inspect suspicious keywords",
+                "threat_intel": {"cvss_score": 0},
+                "ai_explanation": ""
             }]
 
-            summary[results[0]["risk"].lower()] = 1
-
-        # ===============================
-        # HASH SCAN
-        # ===============================
+        # ================= HASH SCAN =================
         elif hash_value:
 
             hash_risk = "Low"
             score = 10
             details = ["Basic hash pattern analysis"]
 
-            if len(hash_value) > 40:
-                hash_risk = "Medium"
-                score = 40
-
             if re.fullmatch(r"[A-Fa-f0-9]{64}", hash_value):
                 hash_risk = "High"
                 score = 75
                 details.append("SHA256 hash pattern detected")
+
+            elif re.fullmatch(r"[A-Fa-f0-9]{40}", hash_value):
+                hash_risk = "Medium"
+                score = 40
+                details.append("SHA1 hash pattern detected")
 
             results = [{
                 "type": "Hash",
@@ -158,19 +154,27 @@ def index():
                 "risk": hash_risk,
                 "score": score,
                 "details": details,
-                "recommendation": "Investigate hash origin if suspicious"
+                "recommendation": "Investigate hash origin if suspicious",
+                "threat_intel": {"cvss_score": 0},
+                "ai_explanation": ""
             }]
 
-            summary[hash_risk.lower()] = 1
+        # 🔐 Ensure consistent structure for ALL results
+        for r in results:
+            r.setdefault("ai_explanation", "")
+            r.setdefault("threat_intel", {"cvss_score": 0})
+
+        # Summary calculation
+        summary = {
+            "low": sum(1 for r in results if r["risk"] == "Low"),
+            "medium": sum(1 for r in results if r["risk"] == "Medium"),
+            "high": sum(1 for r in results if r["risk"] == "High"),
+        }
 
         latest_results = results
         latest_summary = summary
 
-    return render_template(
-        "index.html",
-        results=results,
-        summary=summary
-    )
+    return render_template("index.html", results=results, summary=summary)
 
 
 # ------------------------------------
@@ -195,11 +199,20 @@ def download_report():
         report_text += f"\nTarget: {r.get('title')}\n"
         report_text += f"Risk: {r['risk']} ({r['score']}%)\n"
 
+        cvss = r.get("threat_intel", {}).get("cvss_score", 0)
+        report_text += f"CVSS Score: {cvss}\n"
+
         for d in r.get("details", []):
             report_text += f"- {d}\n"
 
+        if r.get("ai_explanation"):
+            report_text += "\nAI Risk Analysis:\n"
+            report_text += r["ai_explanation"] + "\n"
+
         if r.get("recommendation"):
-            report_text += f"Recommendation: {r['recommendation']}\n"
+            report_text += f"\nRecommendation: {r['recommendation']}\n"
+
+        report_text += "\n----------------------------------------\n"
 
     file_stream = io.BytesIO()
     file_stream.write(report_text.encode("utf-8"))

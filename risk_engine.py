@@ -1,11 +1,18 @@
 import requests
-from datetime import datetime
 
 
 # -------------------------------------
-# OSV Vulnerability Check
+# OSV Threat Intelligence
 # -------------------------------------
-def check_osv_vulnerabilities(package, version):
+def get_osv_details(package, version):
+
+    if not package or not version:
+        return {
+            "count": 0,
+            "cves": [],
+            "severity": "Low",
+            "cvss_score": 0
+        }
 
     url = "https://api.osv.dev/v1/query"
 
@@ -18,16 +25,109 @@ def check_osv_vulnerabilities(package, version):
     }
 
     try:
-        response = requests.post(url, json=payload, timeout=3)
+        response = requests.post(url, json=payload, timeout=5)
 
         if response.status_code == 200:
             data = response.json()
-            return len(data.get("vulns", []))
+            vulns = data.get("vulns", [])
 
-    except:
-        pass
+            severity_scores = []
+            cve_ids = []
 
-    return 0
+            for v in vulns:
+                if "id" in v:
+                    cve_ids.append(v["id"])
+
+                if "severity" in v:
+                    for s in v["severity"]:
+                        if "score" in s:
+                            try:
+                                severity_scores.append(float(s["score"]))
+                            except:
+                                pass
+
+            max_score = max(severity_scores) if severity_scores else 0
+
+            if max_score >= 9:
+                severity_level = "Critical"
+            elif max_score >= 7:
+                severity_level = "High"
+            elif max_score >= 4:
+                severity_level = "Medium"
+            else:
+                severity_level = "Low"
+
+            return {
+                "count": len(vulns),
+                "cves": cve_ids,
+                "severity": severity_level,
+                "cvss_score": round(max_score, 1)
+            }
+
+    except Exception as e:
+        print("OSV error:", e)
+
+    return {
+        "count": 0,
+        "cves": [],
+        "severity": "Low",
+        "cvss_score": 0
+    }
+
+
+# -------------------------------------
+# AI-Based Risk Explanation Engine
+# -------------------------------------
+def generate_ai_explanation(name, score, risk, reasons, threat_intel):
+
+    explanation = []
+    vuln_count = threat_intel.get("count", 0)
+    severity = threat_intel.get("severity", "Low")
+    cvss = threat_intel.get("cvss_score", 0)
+
+    explanation.append(f"Dependency '{name}' security analysis summary:")
+
+    if vuln_count > 0:
+        explanation.append(
+            f"It contains {vuln_count} known vulnerabilities "
+            f"(highest CVSS score: {cvss}, Severity: {severity})."
+        )
+    else:
+        explanation.append("No publicly disclosed vulnerabilities detected.")
+
+    if score >= 80:
+        explanation.append(
+            "The overall risk score is critically high due to multiple security and maintenance risks."
+        )
+    elif score >= 40:
+        explanation.append(
+            "The package presents moderate security concerns that should be addressed."
+        )
+    else:
+        explanation.append(
+            "The package currently demonstrates low observable risk."
+        )
+
+    if "Not using latest version" in reasons:
+        explanation.append(
+            "The installed version is outdated, increasing exposure to known and future exploits."
+        )
+
+    if "Old major version detected" in reasons:
+        explanation.append(
+            "The major version is significantly old and may lack modern security patches."
+        )
+
+    if risk == "High":
+        recommendation = "Immediate upgrade or replacement is strongly recommended."
+    elif risk == "Medium":
+        recommendation = "Upgrade to a secure and maintained version soon."
+    else:
+        recommendation = "Continue monitoring for future advisories."
+
+    explanation.append("Recommendation: " + recommendation)
+
+    return " ".join(explanation)
 
 
 # -------------------------------------
@@ -42,53 +142,41 @@ def calculate_risk(dependencies):
         score = 0
         reasons = []
 
-        breakdown = {
-            "vulnerability": 0,
-            "version_age": 0,
-            "trust": 0,
-            "maintenance": 0
-        }
+        name = dep.get("name", "").strip()
 
-        name = dep.get("name", "")
-        version = dep.get("version", "")
+        # 🔐 Clean version properly
+        raw_version = str(dep.get("version", "")).strip()
+        version = raw_version.replace("==", "").strip()
 
-        # -----------------------------
-        # 1️⃣ Real Vulnerability Check
-        # -----------------------------
-        vuln_count = check_osv_vulnerabilities(name, version)
+        # Skip if no valid name
+        if not name:
+            continue
 
+        # OSV Threat Intelligence
+        osv_data = get_osv_details(name, version)
+
+        vuln_count = osv_data["count"]
+        severity = osv_data["severity"]
+
+        # Vulnerability Score
         if vuln_count > 0:
-            vuln_score = min(60, vuln_count * 20)
-            breakdown["vulnerability"] = vuln_score
-            score += vuln_score
-            reasons.append(f"{vuln_count} known vulnerabilities detected")
+            score += min(60, vuln_count * 15)
+            reasons.append(f"{vuln_count} known vulnerabilities found")
 
-        # -----------------------------
-        # 2️⃣ Version Age Check
-        # -----------------------------
+        # Severity Weight
+        if severity == "Critical":
+            score += 30
+        elif severity == "High":
+            score += 20
+        elif severity == "Medium":
+            score += 10
+
+        # Version Age Heuristic
         if version.startswith(("0.", "1.")):
-            breakdown["version_age"] = 25
-            score += 25
-            reasons.append("Very old major version")
+            score += 20
+            reasons.append("Old major version detected")
 
-        elif version.startswith("2."):
-            breakdown["version_age"] = 15
-            score += 15
-            reasons.append("Outdated major version")
-
-        # -----------------------------
-        # 3️⃣ Known Risky Packages
-        # -----------------------------
-        risky_packages = ["log4j", "event-stream"]
-
-        if name.lower() in risky_packages:
-            breakdown["trust"] = 25
-            score += 25
-            reasons.append("Historically compromised package")
-
-        # -----------------------------
-        # 4️⃣ Maintenance Check
-        # -----------------------------
+        # Maintenance Check (Latest Version)
         try:
             url = f"https://pypi.org/pypi/{name}/json"
             response = requests.get(url, timeout=3)
@@ -96,53 +184,47 @@ def calculate_risk(dependencies):
             if response.status_code == 200:
                 data = response.json()
                 latest_version = data["info"]["version"]
-                release_info = data["releases"].get(latest_version, [])
 
-                if release_info:
-                    upload_time = release_info[0]["upload_time"]
-                    release_year = int(upload_time[:4])
-                    current_year = datetime.now().year
+                if latest_version.strip() != version.strip():
+                    score += 10
+                    reasons.append("Not using latest version")
 
-                    if current_year - release_year >= 3:
-                        breakdown["maintenance"] = 20
-                        score += 20
-                        reasons.append("Inactive or poorly maintained package")
+        except Exception as e:
+            print("PyPI check error:", e)
 
-        except:
-            pass
+        score = min(score, 100)
 
-        # -----------------------------
-        # Final Risk Level
-        # -----------------------------
-        if score >= 75:
+        # Risk Level Classification
+        if score >= 80:
             risk = "High"
         elif score >= 40:
             risk = "Medium"
         else:
             risk = "Low"
 
-        # -----------------------------
-        # Recommendation
-        # -----------------------------
-        if risk == "High":
-            recommendation = "Immediate upgrade or replacement required"
-        elif risk == "Medium":
-            recommendation = "Update to latest stable version"
-        else:
-            recommendation = "Safe to use"
+        recommendation = (
+            "Immediate upgrade required"
+            if risk == "High"
+            else "Consider updating package"
+            if risk == "Medium"
+            else "Safe to use"
+        )
 
-        # -----------------------------
-        # Append Result
-        # -----------------------------
+        # 🧠 AI Explanation
+        ai_summary = generate_ai_explanation(
+            name, score, risk, reasons, osv_data
+        )
+
         results.append({
             "type": "Dependency",
             "name": name,
             "version": version,
-            "score": min(score, 100),
+            "score": score,
             "risk": risk,
-            "reason": ", ".join(reasons) if reasons else "No major issues detected",
-            "breakdown": breakdown,
-            "recommendation": recommendation
+            "details": reasons,
+            "threat_intel": osv_data,
+            "recommendation": recommendation,
+            "ai_explanation": ai_summary
         })
 
     return results
