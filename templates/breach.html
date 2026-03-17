@@ -1,8 +1,11 @@
 <!DOCTYPE html>
+<html lang="en">
 
-<html>
 <head>
-<title>Dependency-Guard | Phishing Intelligence Module</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Dependency-Guard | Breach Intelligence Module</title>
 
 <style>
 
@@ -17,7 +20,7 @@ overflow-x:hidden;
 animation:fadeIn 0.6s ease-in;
 }
 
-/* GLOW BACKGROUND */
+/* BACKGROUND GLOW */
 
 body::before,
 body::after{
@@ -81,7 +84,7 @@ backdrop-filter:blur(20px);
 color:#e2e8f0;
 text-decoration:none;
 font-weight:600;
-transition:0.3s ease;
+transition:0.3s;
 }
 
 .topbar a:hover{
@@ -94,7 +97,7 @@ color:#22c55e;
 padding:50px;
 }
 
-/* GLASS CARD */
+/* GLASS */
 
 .glass{
 background:rgba(255,255,255,0.06);
@@ -103,10 +106,9 @@ padding:30px;
 border:1px solid rgba(34,197,94,0.3);
 box-shadow:0 0 20px rgba(34,197,94,0.2);
 backdrop-filter:blur(20px);
-margin-bottom:40px;
 }
 
-/* SCAN GRID */
+/* GRID */
 
 .scan-grid{
 display:grid;
@@ -129,8 +131,7 @@ transform:translateY(-8px);
 box-shadow:0 0 25px rgba(34,197,94,0.6);
 }
 
-.scan-box input,
-.scan-box textarea{
+.scan-box input{
 width:90%;
 padding:10px;
 border-radius:10px;
@@ -161,32 +162,19 @@ box-shadow:0 0 15px rgba(34,197,94,0.7);
 /* RESULT CARD */
 
 .result-card{
-background:rgba(255,255,255,0.08);
+margin-top:30px;
 border-radius:20px;
-padding:28px;
-border:1px solid rgba(255,255,255,0.1);
+padding:25px;
+background:rgba(255,255,255,0.08);
 animation:fadeIn 0.4s ease-in-out;
-transition:0.3s ease;
 }
 
-.result-card:hover{
-transform:translateY(-6px);
-box-shadow:0 0 18px rgba(34,197,94,0.6);
-}
-
-/* RISK COLORS */
-
-.risk-low{
+.safe{
 color:#22c55e;
 font-weight:bold;
 }
 
-.risk-medium{
-color:#facc15;
-font-weight:bold;
-}
-
-.risk-high{
+.breach{
 color:#ef4444;
 font-weight:bold;
 }
@@ -195,19 +183,21 @@ ul{
 margin-left:20px;
 }
 
-/* BACK BUTTON */
+/* RISK BAR */
 
-.back-btn{
-display:inline-block;
-margin-top:25px;
-text-decoration:none;
-color:#38bdf8;
-font-weight:bold;
-transition:0.3s;
+.risk-bar{
+margin-top:15px;
+height:12px;
+width:100%;
+background:#1f2937;
+border-radius:10px;
+overflow:hidden;
 }
 
-.back-btn:hover{
-color:#22c55e;
+.risk-fill{
+height:100%;
+border-radius:10px;
+transition:width 0.5s;
 }
 
 </style>
@@ -217,7 +207,7 @@ color:#22c55e;
 <body>
 
 <div class="header">
-🔐 Dependency-Guard — Phishing Intelligence Module
+🔐 Dependency-Guard — Breach Intelligence Module
 </div>
 
 <div class="topbar">
@@ -228,24 +218,39 @@ color:#22c55e;
 
 <div class="container">
 
-<!-- SCAN SECTION -->
-
 <div class="glass">
 
 <form method="POST">
 
 <div class="scan-grid">
 
-<div class="scan-box">
-<h3>💬 Message Scan</h3>
-<textarea name="message" rows="3" placeholder="Paste suspicious message"></textarea>
-<button type="submit">Scan Message</button>
-</div>
+<!-- EMAIL BREACH -->
 
 <div class="scan-box">
-<h3>📞 Phone Scan</h3>
-<input type="text" name="phone" placeholder="Enter phone number">
-<button type="submit">Scan Number</button>
+
+<h3>📧 Email Breach Scan</h3>
+
+<input type="email" name="email" placeholder="Enter email address">
+
+<button type="submit">Check Breach</button>
+
+</div>
+
+<!-- PASSWORD ANALYZER -->
+
+<div class="scan-box">
+
+<h3>🔑 Password Security Analyzer</h3>
+
+<input type="password" id="passwordInput" placeholder="Enter password">
+
+<div class="risk-bar">
+<div id="strengthBar" class="risk-fill"></div>
+</div>
+
+<p id="strengthText">Strength: -</p>
+<p id="crackTime">Estimated Crack Time: -</p>
+
 </div>
 
 </div>
@@ -254,52 +259,97 @@ color:#22c55e;
 
 </div>
 
-<!-- RESULT -->
-
 {% if result %}
 
 <div class="result-card">
 
-<h2>🔍 Scan Result</h2>
+{% if result == "No breach found" %}
 
-{% if result.original_input %}
-
-<p><strong>Original Input:</strong> {{ result.original_input }}</p>
-<p><strong>Processed Input:</strong> {{ result.processed_input }}</p>
-<hr>
-{% endif %}
-
-<p>
-<strong>Risk Level:</strong>
-<span class="risk-{{ result.risk|lower }}">
-{{ result.risk }}
-</span>
+<p class="safe">
+✅ No breach found for <strong>{{ email }}</strong>
 </p>
 
-<p><strong>Risk Score:</strong> {{ result.score }}%</p>
+{% else %}
 
-{% if result.details %} <strong>Reasons:</strong>
+<p class="breach">
+⚠ Breach detected for <strong>{{ email }}</strong>
+</p>
 
-<ul>
-{% for r in result.details %}
-<li>{{ r }}</li>
-{% endfor %}
-</ul>
+{% set breach_count = result|length %}
+
+<p><strong>Breach Count:</strong> {{ breach_count }}</p>
+
+<div class="risk-bar">
+
+<div class="risk-bar">
+
+{% if breach_count == 1 %}
+<div class="risk-fill risk-low"></div>
+
+{% elif breach_count <= 3 %}
+<div class="risk-fill risk-medium"></div>
+
+{% else %}
+<div class="risk-fill risk-high"></div>
 {% endif %}
+
+</div>
+
+</div>
 
 <br>
 
-<strong>Recommendation:</strong>
+<strong>Breaches Found:</strong>
 
-<p>{{ result.recommendation }}</p>
+<ul>
+{% for breach in result %}
+<li>{{ breach }}</li>
+{% endfor %}
+</ul>
+
+{% endif %}
 
 </div>
 
 {% endif %}
 
-<a href="/" class="back-btn">⬅ Back to Dashboard</a>
-
 </div>
+
+<script>
+
+const passwordInput = document.getElementById("passwordInput");
+const strengthBar = document.getElementById("strengthBar");
+const strengthText = document.getElementById("strengthText");
+const crackTime = document.getElementById("crackTime");
+
+passwordInput.addEventListener("input", function(){
+
+let p = passwordInput.value;
+let score = 0;
+
+if(p.length >= 8) score++;
+if(/[A-Z]/.test(p)) score++;
+if(/[0-9]/.test(p)) score++;
+if(/[^A-Za-z0-9]/.test(p)) score++;
+
+const levels = [
+["10%","#ef4444","Very Weak","Instantly"],
+["25%","#ef4444","Weak","Few minutes"],
+["50%","#facc15","Medium","Few hours"],
+["75%","#38bdf8","Strong","Few years"],
+["100%","#22c55e","Very Strong","Millions of years"]
+];
+
+let level = levels[score];
+
+strengthBar.style.width = level[0];
+strengthBar.style.background = level[1];
+strengthText.innerText = "Strength: " + level[2];
+crackTime.innerText = "Estimated Crack Time: " + level[3];
+
+});
+
+</script>
 
 </body>
 </html>

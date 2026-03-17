@@ -35,14 +35,38 @@ def get_osv_details(package, version):
             cve_ids = []
 
             for v in vulns:
+
                 if "id" in v:
                     cve_ids.append(v["id"])
 
                 if "severity" in v:
                     for s in v["severity"]:
-                        if "score" in s:
+                        score = s.get("score")
+                        if score:
                             try:
-                                severity_scores.append(float(s["score"]))
+                                severity_scores.append(float(score))
+                            except:
+                                pass
+
+                if "database_specific" in v:
+                    db = v.get("database_specific", {})
+                    cvss = db.get("cvss")
+
+                    if isinstance(cvss, dict):
+                        score = cvss.get("score")
+                        if score:
+                            try:
+                                severity_scores.append(float(score))
+                            except:
+                                pass
+
+                if "cvss" in v:
+                    cvss = v.get("cvss")
+                    if isinstance(cvss, dict):
+                        score = cvss.get("score")
+                        if score:
+                            try:
+                                severity_scores.append(float(score))
                             except:
                                 pass
 
@@ -76,11 +100,12 @@ def get_osv_details(package, version):
 
 
 # -------------------------------------
-# AI-Based Risk Explanation Engine
+# AI-Based Risk Explanation
 # -------------------------------------
 def generate_ai_explanation(name, score, risk, reasons, threat_intel):
 
     explanation = []
+
     vuln_count = threat_intel.get("count", 0)
     severity = threat_intel.get("severity", "Low")
     cvss = threat_intel.get("cvss_score", 0)
@@ -97,11 +122,11 @@ def generate_ai_explanation(name, score, risk, reasons, threat_intel):
 
     if score >= 80:
         explanation.append(
-            "The overall risk score is critically high due to multiple security and maintenance risks."
+            "The overall risk score is critically high due to multiple security risks."
         )
     elif score >= 40:
         explanation.append(
-            "The package presents moderate security concerns that should be addressed."
+            "The package presents moderate security concerns."
         )
     else:
         explanation.append(
@@ -110,20 +135,20 @@ def generate_ai_explanation(name, score, risk, reasons, threat_intel):
 
     if "Not using latest version" in reasons:
         explanation.append(
-            "The installed version is outdated, increasing exposure to known and future exploits."
+            "The installed version is outdated."
         )
 
     if "Old major version detected" in reasons:
         explanation.append(
-            "The major version is significantly old and may lack modern security patches."
+            "The major version is significantly old."
         )
 
     if risk == "High":
-        recommendation = "Immediate upgrade or replacement is strongly recommended."
+        recommendation = "Immediate upgrade recommended."
     elif risk == "Medium":
-        recommendation = "Upgrade to a secure and maintained version soon."
+        recommendation = "Upgrade soon."
     else:
-        recommendation = "Continue monitoring for future advisories."
+        recommendation = "Continue monitoring."
 
     explanation.append("Recommendation: " + recommendation)
 
@@ -143,27 +168,21 @@ def calculate_risk(dependencies):
         reasons = []
 
         name = dep.get("name", "").strip()
-
-        # 🔐 Clean version properly
         raw_version = str(dep.get("version", "")).strip()
         version = raw_version.replace("==", "").strip()
 
-        # Skip if no valid name
         if not name:
             continue
 
-        # OSV Threat Intelligence
         osv_data = get_osv_details(name, version)
 
         vuln_count = osv_data["count"]
         severity = osv_data["severity"]
 
-        # Vulnerability Score
         if vuln_count > 0:
             score += min(60, vuln_count * 15)
             reasons.append(f"{vuln_count} known vulnerabilities found")
 
-        # Severity Weight
         if severity == "Critical":
             score += 30
         elif severity == "High":
@@ -171,12 +190,10 @@ def calculate_risk(dependencies):
         elif severity == "Medium":
             score += 10
 
-        # Version Age Heuristic
         if version.startswith(("0.", "1.")):
             score += 20
             reasons.append("Old major version detected")
 
-        # Maintenance Check (Latest Version)
         try:
             url = f"https://pypi.org/pypi/{name}/json"
             response = requests.get(url, timeout=3)
@@ -194,7 +211,6 @@ def calculate_risk(dependencies):
 
         score = min(score, 100)
 
-        # Risk Level Classification
         if score >= 80:
             risk = "High"
         elif score >= 40:
@@ -210,7 +226,6 @@ def calculate_risk(dependencies):
             else "Safe to use"
         )
 
-        # 🧠 AI Explanation
         ai_summary = generate_ai_explanation(
             name, score, risk, reasons, osv_data
         )

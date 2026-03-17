@@ -1,69 +1,188 @@
-from flask import Flask, render_template, request, send_file
+from flask import Flask, render_template, request
 from werkzeug.utils import secure_filename
 
 from parser import parse_requirements
 from risk_engine import calculate_risk
-from relation_engine import analyze_dependency_relations
-from attack_simulator import simulate_attack
-from tag_engine import generate_tags
 from url_scanner import scan_general_url
 
 import os
 import requests
-import io
 import re
-import socket
-from urllib.parse import urlparse
 
 app = Flask(__name__)
 
 UPLOAD_FOLDER = "uploads"
-ALLOWED_EXTENSIONS = {"txt"}
+ALLOWED_EXTENSIONS = {"txt", "json", "xml"}
 
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024
 
-latest_results = []
-latest_summary = {"low": 0, "medium": 0, "high": 0}
+# API key for phone verification
+PHONE_API_KEY = "EOsVa5hVeqProDWGEMtTI2IOjrr5G0BB"
 
 
 # ------------------------------------
-# Utility Functions
+# Utility
 # ------------------------------------
 
 def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
-def get_release_year(package_name):
+# ------------------------------------
+# EMAIL BREACH CHECK (XposedOrNot)
+# ------------------------------------
+
+def check_email_breach(email):
+
+    url = f"https://api.xposedornot.com/v1/check-email/{email}"
+
     try:
-        url = f"https://pypi.org/pypi/{package_name}/json"
-        response = requests.get(url, timeout=3)
+        response = requests.get(url, timeout=6)
 
-        if response.status_code == 200:
-            data = response.json()
-            latest_version = data["info"]["version"]
-            release_info = data["releases"].get(latest_version, [])
+        if response.status_code != 200:
+            return []
 
-            if release_info:
-                upload_time = release_info[0]["upload_time"]
-                return upload_time[:4]
-    except:
-        pass
+        data = response.json()
 
-    return "Unknown"
+        if data.get("breaches"):
+            return data["breaches"]
+
+        return []
+
+    except Exception:
+        return []
 
 
 # ------------------------------------
-# Main Dashboard Route
+# MESSAGE SCAN
+# ------------------------------------
+
+def scan_message(message):
+
+    original_input = message
+    processed_input = message.strip()
+
+    risk = "Low"
+    score = 10
+    reasons = []
+
+    suspicious_keywords = [
+        "urgent", "verify", "otp", "bank",
+        "lottery", "winner", "click here",
+        "account suspended", "free", "claim now"
+    ]
+
+    detected = [word for word in suspicious_keywords if word in processed_input.lower()]
+
+    if detected:
+        risk = "High"
+        score = 70
+        reasons.append(f"Suspicious keywords detected: {', '.join(detected)}")
+
+    if "http://" in processed_input or "https://" in processed_input:
+        score += 15
+        reasons.append("Message contains external link")
+
+    if not reasons:
+        reasons.append("No phishing indicators detected")
+
+    return {
+        "original_input": original_input,
+        "processed_input": processed_input,
+        "risk": risk,
+        "score": min(score, 100),
+        "details": reasons,
+        "recommendation": "Do not share OTP or click unknown links."
+    }
+
+
+# ------------------------------------
+# PHONE SCAN
+# ------------------------------------
+
+def scan_phone_number(number):
+
+    original_input = number
+    processed_number = number.strip()
+
+    processed_number = re.sub(r"[^\d+]", "", processed_number)
+
+    if processed_number.count("+") > 1:
+        processed_number = processed_number.replace("+", "")
+
+    if not re.fullmatch(r"\+?\d{10,15}", processed_number):
+        return {
+            "original_input": original_input,
+            "processed_input": processed_number,
+            "risk": "High",
+            "score": 90,
+            "details": ["Invalid phone number format"],
+            "recommendation": "Please enter a valid phone number."
+        }
+
+    try:
+
+        url = f"https://api.apilayer.com/number_verification/validate?number={processed_number}"
+
+        headers = {"apikey": PHONE_API_KEY}
+
+        response = requests.get(url, headers=headers, timeout=6)
+
+        if response.status_code != 200:
+            raise Exception("API error")
+
+        data = response.json()
+
+    except Exception:
+
+        return {
+            "original_input": original_input,
+            "processed_input": processed_number,
+            "risk": "Medium",
+            "score": 50,
+            "details": ["Phone verification API failed"],
+            "recommendation": "Unable to verify phone number"
+        }
+
+    valid = data.get("valid", False)
+
+    risk = "Low"
+    score = 15
+    details = []
+
+    if not valid:
+        risk = "High"
+        score = 85
+        details.append("Phone number not valid")
+    else:
+        details.append("Phone verified successfully")
+
+    if processed_number.endswith(("0000", "1234")):
+        risk = "Medium"
+        score = 60
+        details.append("Suspicious repeated digits")
+
+    return {
+        "original_input": original_input,
+        "processed_input": processed_number,
+        "risk": risk,
+        "score": score,
+        "details": details,
+        "recommendation": "Avoid sharing sensitive information"
+    }
+
+
+# ------------------------------------
+# DASHBOARD
 # ------------------------------------
 
 @app.route("/", methods=["GET", "POST"])
 def index():
-    global latest_results, latest_summary
 
     results = []
     summary = {"low": 0, "medium": 0, "high": 0}
+    file_content = None
 
     if request.method == "POST":
 
@@ -71,165 +190,108 @@ def index():
         url_input = request.form.get("url")
         hash_value = request.form.get("hash")
 
-        # ================= FILE SCAN =================
         if file and allowed_file(file.filename):
 
             filename = secure_filename(file.filename)
             filepath = os.path.join(app.config["UPLOAD_FOLDER"], filename)
+
             file.save(filepath)
+
+            with open(filepath, "r", encoding="utf-8") as f:
+                file_content = f.read()
 
             dependencies = parse_requirements(filepath)
 
             if dependencies:
-
                 results = calculate_risk(dependencies)
-                relation_data = analyze_dependency_relations(dependencies)
 
-                for r in results:
-
-                    r["type"] = "Dependency"
-                    r["title"] = r.get("name")
-
-                    # Add relation impact
-                    r["relations"] = relation_data.get(
-                        r["name"],
-                        {"impact_level": "Low", "centrality_score": 0}
-                    )
-
-                    if r["relations"]["impact_level"] == "Critical":
-                        r["score"] = min(r["score"] + 10, 100)
-
-                    # Add release year
-                    r["release_year"] = get_release_year(r["name"])
-
-                    # Attack simulation
-                    r["simulation"] = simulate_attack(
-                        r["name"],
-                        risk_score=r["score"]
-                    )
-
-                    # Tags
-                    r["tags"] = generate_tags(
-                        r["name"],
-                        r["score"],
-                        r["release_year"]
-                    )
-
-        # ================= URL SCAN =================
         elif url_input and url_input.startswith(("http://", "https://")):
 
             url_result = scan_general_url(url_input)
 
             results = [{
-                "type": "URL",
-                "title": url_input,
+                "original_input": url_input,
                 "risk": url_result.get("risk", "Low"),
-                "score": url_result.get("score", 0),
+                "score": url_result.get("score", 10),
                 "details": url_result.get("details", []),
-                "recommendation": "Verify HTTPS and inspect suspicious keywords",
-                "threat_intel": {"cvss_score": 0},
-                "ai_explanation": ""
+                "recommendation": "Verify HTTPS and inspect suspicious keywords"
             }]
 
-        # ================= HASH SCAN =================
         elif hash_value:
 
-            hash_risk = "Low"
-            score = 10
-            details = ["Basic hash pattern analysis"]
-
-            if re.fullmatch(r"[A-Fa-f0-9]{64}", hash_value):
-                hash_risk = "High"
-                score = 75
-                details.append("SHA256 hash pattern detected")
-
-            elif re.fullmatch(r"[A-Fa-f0-9]{40}", hash_value):
-                hash_risk = "Medium"
-                score = 40
-                details.append("SHA1 hash pattern detected")
-
             results = [{
-                "type": "Hash",
-                "title": hash_value,
-                "risk": hash_risk,
-                "score": score,
-                "details": details,
-                "recommendation": "Investigate hash origin if suspicious",
-                "threat_intel": {"cvss_score": 0},
-                "ai_explanation": ""
+                "original_input": hash_value,
+                "risk": "Low",
+                "score": 10,
+                "details": ["Basic hash pattern analysis"],
+                "recommendation": "Investigate hash origin if suspicious"
             }]
 
-        # 🔐 Ensure consistent structure for ALL results
-        for r in results:
-            r.setdefault("ai_explanation", "")
-            r.setdefault("threat_intel", {"cvss_score": 0})
-
-        # Summary calculation
         summary = {
-            "low": sum(1 for r in results if r["risk"] == "Low"),
-            "medium": sum(1 for r in results if r["risk"] == "Medium"),
-            "high": sum(1 for r in results if r["risk"] == "High"),
+            "low": sum(1 for r in results if r.get("risk") == "Low"),
+            "medium": sum(1 for r in results if r.get("risk") == "Medium"),
+            "high": sum(1 for r in results if r.get("risk") == "High"),
         }
 
-        latest_results = results
-        latest_summary = summary
-
-    return render_template("index.html", results=results, summary=summary)
+    return render_template("index.html", results=results, summary=summary, file_content=file_content)
 
 
 # ------------------------------------
-# Download Report
+# PHISHING PAGE
 # ------------------------------------
 
-@app.route("/download-report")
-def download_report():
-    global latest_results, latest_summary
+@app.route("/phishing", methods=["GET", "POST"])
+def phishing():
 
-    if not latest_results:
-        return "No scan data available."
+    result = None
+    scan_type = None
 
-    report_text = "DEPENDENCY-GUARD SECURITY REPORT\n"
-    report_text += "=====================================\n\n"
+    if request.method == "POST":
 
-    report_text += f"Low Risk: {latest_summary['low']}\n"
-    report_text += f"Medium Risk: {latest_summary['medium']}\n"
-    report_text += f"High Risk: {latest_summary['high']}\n\n"
+        message_input = request.form.get("message")
+        phone_input = request.form.get("phone")
 
-    for r in latest_results:
-        report_text += f"\nTarget: {r.get('title')}\n"
-        report_text += f"Risk: {r['risk']} ({r['score']}%)\n"
+        if message_input:
+            scan_type = "message"
+            result = scan_message(message_input)
 
-        cvss = r.get("threat_intel", {}).get("cvss_score", 0)
-        report_text += f"CVSS Score: {cvss}\n"
+        elif phone_input:
+            scan_type = "phone"
+            result = scan_phone_number(phone_input)
 
-        for d in r.get("details", []):
-            report_text += f"- {d}\n"
-
-        if r.get("ai_explanation"):
-            report_text += "\nAI Risk Analysis:\n"
-            report_text += r["ai_explanation"] + "\n"
-
-        if r.get("recommendation"):
-            report_text += f"\nRecommendation: {r['recommendation']}\n"
-
-        report_text += "\n----------------------------------------\n"
-
-    file_stream = io.BytesIO()
-    file_stream.write(report_text.encode("utf-8"))
-    file_stream.seek(0)
-
-    return send_file(
-        file_stream,
-        as_attachment=True,
-        download_name="Dependency_Guard_Report.txt",
-        mimetype="text/plain"
-    )
+    return render_template("phishing.html", result=result, scan_type=scan_type)
 
 
 # ------------------------------------
-# Run App
+# BREACH CHECKER PAGE (EMAIL)
+# ------------------------------------
+
+@app.route("/breach", methods=["GET", "POST"])
+def breach():
+
+    result = None
+    email = None
+
+    if request.method == "POST":
+
+        email = request.form.get("email")
+
+        if email:
+
+            breaches = check_email_breach(email)
+
+            if breaches:
+                result = breaches
+            else:
+                result = "No breach found"
+
+    return render_template("breach.html", result=result, email=email)
+
+
 # ------------------------------------
 
 if __name__ == "__main__":
-    os.makedirs("uploads", exist_ok=True)
+
+    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
     app.run(debug=True)

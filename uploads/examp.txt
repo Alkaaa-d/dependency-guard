@@ -5,3 +5,9 @@ django==1.2
 flask==0.5
 requests==2.19.0
 urllib3==1.24.1
+django==1.2
+flask==0.12
+urllib3==1.24.1
+requests==2.19.0
+pyyaml==5.3
+pillow==6.2.1
