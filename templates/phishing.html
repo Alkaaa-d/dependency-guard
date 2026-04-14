@@ -1,79 +1,74 @@
 <!DOCTYPE html>
-
 <html>
 <head>
 <title>Dependency-Guard | Phishing Intelligence Module</title>
 
 <style>
 
-/* PAGE STYLE */
-
+/* ===== GLOBAL ===== */
 body{
 margin:0;
 font-family:'Segoe UI',sans-serif;
-background:radial-gradient(circle at 20% 20%,#1e293b,#0f172a 60%);
+background:radial-gradient(circle at 20% 20%,#0a0f1c,#020617 70%);
 color:#e2e8f0;
 overflow-x:hidden;
 animation:fadeIn 0.6s ease-in;
 }
 
-/* GLOW BACKGROUND */
-
+/* ===== GLOW BACKGROUND ===== */
 body::before,
 body::after{
 content:"";
 position:fixed;
-width:400px;
-height:400px;
+width:450px;
+height:450px;
 border-radius:50%;
-filter:blur(120px);
+filter:blur(140px);
 z-index:-1;
+animation:floatGlow 6s infinite alternate ease-in-out;
 }
 
 body::before{
-background:rgba(34,197,94,0.25);
+background:rgba(0,255,157,0.25);
 top:-100px;
 left:-100px;
 }
 
 body::after{
-background:rgba(59,130,246,0.25);
+background:rgba(0,195,255,0.25);
 bottom:-120px;
 right:-120px;
 }
 
-/* FADE */
+@keyframes floatGlow{
+from{ transform:translateY(0px);}
+to{ transform:translateY(40px);}
+}
 
+/* ===== FADE ===== */
 @keyframes fadeIn{
-from{
-opacity:0;
-transform:translateY(10px);
-}
-to{
-opacity:1;
-transform:translateY(0);
-}
+from{opacity:0;transform:translateY(10px);}
+to{opacity:1;transform:translateY(0);}
 }
 
-/* HEADER */
-
+/* ===== HEADER ===== */
 .header{
 padding:25px 50px;
 font-size:22px;
 font-weight:600;
-background:rgba(255,255,255,0.05);
-border-bottom:1px solid rgba(34,197,94,0.3);
-box-shadow:0 0 10px rgba(34,197,94,0.2);
+background:rgba(255,255,255,0.03);
+border-bottom:1px solid rgba(0,255,157,0.4);
+box-shadow:0 0 15px rgba(0,255,157,0.3);
+animation:glowPulse 2s infinite alternate;
 }
 
-/* NAVBAR */
-
+/* ===== NAVBAR ===== */
 .topbar{
 display:flex;
 justify-content:center;
 gap:60px;
 padding:15px;
-background:rgba(255,255,255,0.05);
+background:rgba(255,255,255,0.04);
 backdrop-filter:blur(20px);
 }
 
@@ -81,137 +76,156 @@ backdrop-filter:blur(20px);
 color:#e2e8f0;
 text-decoration:none;
 font-weight:600;
-transition:0.3s ease;
+transition:0.3s;
 }
 
 .topbar a:hover{
-color:#22c55e;
+color:#00ff9d;
+text-shadow:0 0 10px #00ff9d;
 }
 
-/* CONTAINER */
-
+/* ===== CONTAINER ===== */
 .container{
 padding:50px;
 }
 
-/* GLASS CARD */
-
+/* ===== GLASS ===== */
 .glass{
-background:rgba(255,255,255,0.06);
+background:rgba(255,255,255,0.05);
 border-radius:20px;
 padding:30px;
-border:1px solid rgba(34,197,94,0.3);
-box-shadow:0 0 20px rgba(34,197,94,0.2);
+border:1px solid rgba(0,255,157,0.3);
+box-shadow:0 0 25px rgba(0,255,157,0.25);
 backdrop-filter:blur(20px);
 margin-bottom:40px;
 }
 
-/* SCAN GRID */
-
+/* ===== GRID ===== */
 .scan-grid{
 display:grid;
 grid-template-columns:repeat(2,1fr);
 gap:25px;
 }
 
-/* SCAN BOX */
-
+/* ===== SCAN BOX ===== */
 .scan-box{
 background:rgba(255,255,255,0.06);
 border-radius:18px;
 padding:25px;
 text-align:center;
-transition:0.3s ease;
+transition:0.3s;
+position:relative;
+overflow:hidden;
+}
+
+/* GLOW BORDER */
+.scan-box::before{
+content:"";
+position:absolute;
+inset:0;
+border-radius:18px;
+padding:1px;
+background:linear-gradient(120deg,#00ff9d,#00c3ff);
+-webkit-mask:
+linear-gradient(#000 0 0) content-box,
+linear-gradient(#000 0 0);
+mask:
+linear-gradient(#000 0 0) content-box,
+linear-gradient(#000 0 0);
+-webkit-mask-composite:xor;
+mask-composite:exclude;
+opacity:0;
+transition:0.3s;
+}
+
+.scan-box:hover::before{
+opacity:1;
 }
 
 .scan-box:hover{
-transform:translateY(-8px);
-box-shadow:0 0 25px rgba(34,197,94,0.6);
+transform:translateY(-10px) scale(1.02);
+box-shadow:0 0 30px rgba(0,255,157,0.6);
 }
 
+/* ===== INPUT ===== */
 .scan-box input,
 .scan-box textarea{
 width:90%;
 padding:10px;
 border-radius:10px;
 border:1px solid rgba(255,255,255,0.2);
-background:rgba(255,255,255,0.08);
+background:rgba(0,0,0,0.4);
 color:white;
 margin-bottom:15px;
+transition:0.3s;
 }
 
-/* BUTTON */
+.scan-box input:focus,
+.scan-box textarea:focus{
+outline:none;
+box-shadow:0 0 10px #00ff9d;
+border-color:#00ff9d;
+}
 
+/* ===== BUTTON ===== */
 .scan-box button{
 width:100%;
 padding:10px;
-background:linear-gradient(90deg,#22c55e,#16a34a);
+background:linear-gradient(90deg,#00ff9d,#00c3ff);
 border:none;
 border-radius:10px;
 font-weight:bold;
 cursor:pointer;
-transition:0.3s ease;
+transition:0.3s;
 }
 
 .scan-box button:hover{
-transform:scale(1.05);
-box-shadow:0 0 15px rgba(34,197,94,0.7);
+transform:scale(1.07);
+box-shadow:0 0 20px #00ff9d;
 }
 
-/* RESULT CARD */
-
+/* ===== RESULT CARD ===== */
 .result-card{
-background:rgba(255,255,255,0.08);
+background:rgba(255,255,255,0.07);
 border-radius:20px;
 padding:28px;
 border:1px solid rgba(255,255,255,0.1);
 animation:fadeIn 0.4s ease-in-out;
-transition:0.3s ease;
+transition:0.3s;
 }
 
 .result-card:hover{
-transform:translateY(-6px);
-box-shadow:0 0 18px rgba(34,197,94,0.6);
+transform:translateY(-8px);
+box-shadow:0 0 25px rgba(0,255,157,0.6);
 }
 
-/* RISK COLORS */
+/* ===== RISK ===== */
+.risk-low{color:#00ff9d;font-weight:bold;}
+.risk-medium{color:#facc15;font-weight:bold;}
+.risk-high{color:#ef4444;font-weight:bold;}
 
-.risk-low{
-color:#22c55e;
-font-weight:bold;
-}
-
-.risk-medium{
-color:#facc15;
-font-weight:bold;
-}
-
-.risk-high{
-color:#ef4444;
-font-weight:bold;
-}
-
-ul{
-margin-left:20px;
-}
-
-/* BACK BUTTON */
-
+/* ===== BACK BUTTON ===== */
 .back-btn{
 display:inline-block;
 margin-top:25px;
 text-decoration:none;
-color:#38bdf8;
+color:#00c3ff;
 font-weight:bold;
 transition:0.3s;
 }
 
 .back-btn:hover{
-color:#22c55e;
+color:#00ff9d;
+text-shadow:0 0 10px #00ff9d;
+}
+
+/* ===== GLOW ANIMATION ===== */
+@keyframes glowPulse{
+from{box-shadow:0 0 5px rgba(0,255,157,0.3);}
+to{box-shadow:0 0 20px rgba(0,255,157,0.8);}
 }
 
 </style>
-
 </head>
 
 <body>
@@ -227,8 +241,6 @@ color:#22c55e;
 </div>
 
 <div class="container">
-
-<!-- SCAN SECTION -->
 
 <div class="glass">
 
@@ -254,8 +266,6 @@ color:#22c55e;
 
 </div>
 
-<!-- RESULT -->
-
 {% if result %}
 
 <div class="result-card">
@@ -263,7 +273,6 @@ color:#22c55e;
 <h2>🔍 Scan Result</h2>
 
 {% if result.original_input %}
-
 <p><strong>Original Input:</strong> {{ result.original_input }}</p>
 <p><strong>Processed Input:</strong> {{ result.processed_input }}</p>
 <hr>
@@ -278,8 +287,8 @@ color:#22c55e;
 
 <p><strong>Risk Score:</strong> {{ result.score }}%</p>
 
-{% if result.details %} <strong>Reasons:</strong>
-
+{% if result.details %}
+<strong>Reasons:</strong>
 <ul>
 {% for r in result.details %}
 <li>{{ r }}</li>
@@ -290,7 +299,6 @@ color:#22c55e;
 <br>
 
 <strong>Recommendation:</strong>
-
 <p>{{ result.recommendation }}</p>
 
 </div>
