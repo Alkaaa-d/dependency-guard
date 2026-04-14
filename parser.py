@@ -1,3 +1,24 @@
+import json
+
+def parse_requirements(filepath):
+
+    dependencies = []
+
+    if filepath.endswith(".txt"):
+        with open(filepath) as f:
+            for line in f:
+                if "==" in line:
+                    name, version = line.strip().split("==")
+                    dependencies.append((name, version))
+
+    elif filepath.endswith(".json"):
+        data = json.load(open(filepath))
+
+        if "dependencies" in data:
+            for name, version in data["dependencies"].items():
+                dependencies.append((name, version))
+
+    return dependencies
 def parse_requirements(filepath):
     dependencies = []
 

@@ -97,11 +97,6 @@ def get_osv_details(package, version):
         "severity": "Low",
         "cvss_score": 0
     }
-
-
-# -------------------------------------
-# AI-Based Risk Explanation
-# -------------------------------------
 def generate_ai_explanation(name, score, risk, reasons, threat_intel):
 
     explanation = []
